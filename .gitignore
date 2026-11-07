@@ -6,3 +6,5 @@ node_modules/
 src/frontend/dist/
 src/main/resources/static/assets/
 *.log
+.neon
+.env.local

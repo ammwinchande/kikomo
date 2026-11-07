@@ -1,0 +1,11 @@
+{
+  "dependencies": {
+    "@neon/config": "^1.13.0",
+    "@neon/env": "^2.1.0"
+  },
+  "scripts": {
+    "build": "npm --prefix src/frontend run build",
+    "dev": "npm --prefix src/frontend run dev"
+  },
+  "private": true
+}

@@ -7,7 +7,7 @@
 - [x] Phase 4 Inbox — `/api/*`, Spring Security cookie session, kill switch
 - [x] Phase 5 Audit — hash chain, `stableStringify`, advisory lock, `/api/audit/verify`
 - [x] Phase 6 LLM UI — CompilePolicy (stub + OpenAI-compatible), React inbox builds (`npm run build` PASS)
-- [ ] Phase 7 Freeze — `./gradlew check` on CI; locally blocked by sandbox socket (see NOTES)
+- [x] Phase 7 Freeze — `./gradlew check` BUILD SUCCESSFUL (2026-11-07, escalated run) + live HTTP E2E on Neon (see NOTES)
 
 ## Acceptance R1–R9
 - [x] R1 Small allowlisted payment executes (Evaluate allow + mock payout)
@@ -18,4 +18,4 @@
 - [x] R6 Audit chain verifies; tamper detected (AuditTest)
 - [x] R7 Policy compile returns draft only, never auto-activates
 - [x] R8 Mock mode shows MOCK PAYPAL banner
-- [ ] R9 Hosted Render demo (owner: Neon + Render env, §16)
+- [ ] R9 Hosted Render demo (Neon DB live + verified; Render deploy still owner step, §16)

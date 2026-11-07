@@ -3,6 +3,7 @@ import com.fasterxml.jackson.databind.ObjectMapper; import co.tz.kikomo.shared.P
 import java.nio.charset.StandardCharsets; import java.security.MessageDigest; import java.util.*;
 @Repository
 public class Repositories {
+  static final String INSERT_CALL_SQL = "INSERT INTO calls(id,agent_id,tool,args,counterparty,category,decision,reason_codes,status,amount_minor,currency) VALUES (?,?,?,?::jsonb,?,?,?,?::text[],?,?,?)";
   private final JdbcTemplate jdbc; private final ObjectMapper mapper=new ObjectMapper();
   public Repositories(JdbcTemplate jdbc){ this.jdbc=jdbc; }
   public static String hashToken(String token){ try{ return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(token.getBytes(StandardCharsets.UTF_8))); }catch(Exception e){ throw new RuntimeException(e);} }
@@ -24,7 +25,7 @@ public class Repositories {
   public void addUntrusted(UUID agentId,String valueNorm,String url){ jdbc.update("INSERT INTO untrusted_strings(agent_id,value_norm,source_url) VALUES (?,?,?) ON CONFLICT (agent_id,value_norm) DO NOTHING", agentId, valueNorm, url); }
   public UUID insertCall(UUID agentId,String tool,String argsJson,Long amount,String currency,String counterparty,String category,String decision,List<String> reasons,String status){
     UUID id=UUID.randomUUID();
-    jdbc.update("INSERT INTO calls(id,agent_id,tool,args,counterparty,category,decision,reason_codes,status,amount_minor,currency) VALUES (?,?,?,?::jsonb,?,?,?,?,?::text[],?,?)",
+    jdbc.update(INSERT_CALL_SQL,
       id, agentId, tool, argsJson, counterparty, category, decision, reasons.toArray(new String[0]), status, amount, currency);
     return id;
   }

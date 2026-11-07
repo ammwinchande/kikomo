@@ -40,3 +40,4 @@ tasks.register('copyFrontend', Copy) {
     onlyIf { file('src/frontend/dist').exists() }
 }
 processResources.mustRunAfter 'copyFrontend'
+tasks.withType(JavaCompile).configureEach { options.compilerArgs += ['-parameters'] }

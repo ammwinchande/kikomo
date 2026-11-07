@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: kikomo
+    env: docker
+    plan: starter
+    dockerfilePath: ./Dockerfile
+    envVars:
+      - key: PAYPAL_MODE
+        value: mock
+      - key: PUBLIC_URL
+        sync: false

@@ -1,0 +1,19 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment: { POSTGRES_DB: kikomo, POSTGRES_USER: kikomo, POSTGRES_PASSWORD: kikomo }
+    ports: ["5432:5432"]
+    volumes: ["pgdata:/var/lib/postgresql/data"]
+  app:
+    build: .
+    depends_on: [db]
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/kikomo
+      SPRING_DATASOURCE_USERNAME: kikomo
+      SPRING_DATASOURCE_PASSWORD: kikomo
+      PORT: "8080"
+      PAYPAL_MODE: ${PAYPAL_MODE:-mock}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-admin}
+      DEMO_AGENT_TOKEN: ${DEMO_AGENT_TOKEN:-demo-token-change-me-32chars!!}
+    ports: ["8080:8080"]
+volumes: { pgdata: {} }

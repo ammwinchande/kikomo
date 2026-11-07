@@ -1,0 +1,18 @@
+server:
+  port: ${PORT:8080}
+spring:
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/kikomo}
+    username: ${SPRING_DATASOURCE_USERNAME:${DB_USER:kikomo}}
+    password: ${SPRING_DATASOURCE_PASSWORD:${DB_PASSWORD:kikomo}}
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+  jackson:
+    default-property-inclusion: non_null
+kikomo:
+  paypal-mode: ${PAYPAL_MODE:mock}
+  paypal-base-url: ${PAYPAL_BASE_URL:https://api-m.sandbox.paypal.com}
+  public-url: ${PUBLIC_URL:http://localhost:8080}
+  hard-max-tx-minor: ${HARD_MAX_TX_MINOR:100000}
+  fetch-allowed-hosts: ${FETCH_ALLOWED_HOSTS:localhost,127.0.0.1}

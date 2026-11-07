@@ -1,0 +1,1 @@
+export default function Logo(){ return (<div style={{display:'flex',alignItems:'center',gap:10}}><img src="/logo.png" alt="Kikomo" style={{width:36,height:36}} onError={(e:any)=>{e.currentTarget.style.display='none'}}/><strong style={{fontSize:20}}>Kikomo</strong><span style={{opacity:.7}}>MCP gateway for PayPal</span></div>); }

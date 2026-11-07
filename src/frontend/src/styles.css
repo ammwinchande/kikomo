@@ -1,0 +1,2 @@
+@tailwind base; @tailwind components; @tailwind utilities;
+body{font-family:Inter,system-ui,sans-serif;background:#0b1220;color:#e5e7eb} .card{background:#111a2e;border:1px solid #1f2b45;border-radius:12px;padding:16px} .btn{background:#2563eb;color:#fff;padding:8px 14px;border-radius:8px} .btn-danger{background:#dc2626} input,textarea,select{background:#0f172a;border:1px solid #334155;border-radius:8px;padding:8px;color:#e5e7eb;width:100%}

@@ -1,0 +1,42 @@
+plugins {
+    id 'java'
+    id 'org.springframework.boot' version '3.5.7'
+    id 'io.spring.dependency-management' version '1.1.7'
+}
+group = 'co.tz.kikomo'
+version = '0.1.0-SNAPSHOT'
+java { sourceCompatibility = '21' }
+repositories { mavenCentral() }
+dependencies {
+    implementation 'org.springframework.boot:spring-boot-starter-web'
+    implementation 'org.springframework.boot:spring-boot-starter-jdbc'
+    implementation 'org.springframework.boot:spring-boot-starter-security'
+    implementation 'org.springframework.boot:spring-boot-starter-validation'
+    implementation 'org.flywaydb:flyway-core'
+    implementation 'org.flywaydb:flyway-database-postgresql'
+    implementation 'com.fasterxml.jackson.core:jackson-databind'
+    runtimeOnly 'org.postgresql:postgresql'
+    runtimeOnly 'com.h2database:h2'
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testImplementation 'org.springframework.security:spring-security-test'
+    testImplementation 'org.testcontainers:junit-jupiter:1.20.4'
+    testImplementation 'org.testcontainers:postgresql:1.20.4'
+}
+tasks.named('test') { useJUnitPlatform() }
+tasks.register('runSpike', JavaExec) {
+    group = 'verification'; description = 'PayPal sandbox spike (mock-safe)'
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'co.tz.kikomo.spike.SpikeMain'
+}
+tasks.register('frontendBuild', Exec) {
+    group = 'build'; description = 'Build React SPA if npm available'
+    workingDir file('src/frontend')
+    commandLine 'sh', '-c', 'if [ -f package.json ] && command -v npm >/dev/null; then npm install --silent && npm run build; else echo "frontend build skipped (no npm)"; fi'
+    inputs.dir('src/frontend/src'); outputs.dir('src/frontend/dist')
+}
+tasks.register('copyFrontend', Copy) {
+    dependsOn 'frontendBuild'
+    from('src/frontend/dist'); into('src/main/resources/static')
+    onlyIf { file('src/frontend/dist').exists() }
+}
+processResources.mustRunAfter 'copyFrontend'

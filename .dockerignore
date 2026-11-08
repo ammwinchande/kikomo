@@ -1,0 +1,12 @@
+.env
+.env.local
+.neon
+build/
+.gradle/
+.idea/
+**/.DS_Store
+node_modules/
+src/frontend/node_modules/
+src/frontend/dist/
+src/main/resources/static/assets/
+*.log

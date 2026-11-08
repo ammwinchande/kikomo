@@ -3,16 +3,69 @@ server:
 spring:
   datasource:
     url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/kikomo}
-    username: ${SPRING_DATASOURCE_USERNAME:${DB_USER:kikomo}}
-    password: ${SPRING_DATASOURCE_PASSWORD:${DB_PASSWORD:kikomo}}
+    username: ${SPRING_DATASOURCE_USERNAME:kikomo}
+    password: ${SPRING_DATASOURCE_PASSWORD:kikomo}
   flyway:
     enabled: true
     locations: classpath:db/migration
   jackson:
     default-property-inclusion: non_null
+  ai:
+    mcp:
+      server:
+        name: kikomo
+        version: 0.1.0
+        type: SYNC
+        protocol: STATELESS
+        # Must exceed the 25s approval wait (kikomo.approval.wait-timeout).
+        request-timeout: 60s
+        capabilities:
+          tool: true
+          resource: false
+          prompt: false
+          completion: false
+        streamable-http:
+          mcp-endpoint: /mcp
+    model:
+      chat: openai
+      embedding: none
+      image: none
+      moderation: none
+      audio:
+        speech: none
+        transcription: none
+    openai:
+      # The OpenAI starter refuses to start without a key; "unset" is only a placeholder.
+      # CompilePolicy never calls the model unless LLM_PROVIDER != stub and LLM_API_KEY is set.
+      api-key: ${LLM_API_KEY:unset}
+      base-url: ${LLM_BASE_URL:https://api.meta.ai/v1}
+      chat:
+        options:
+          model: ${LLM_MODEL:muse-spark-1.2-contributor}
+          temperature: 0
 kikomo:
-  paypal-mode: ${PAYPAL_MODE:mock}
-  paypal-base-url: ${PAYPAL_BASE_URL:https://api-m.sandbox.paypal.com}
   public-url: ${PUBLIC_URL:http://localhost:8080}
-  hard-max-tx-minor: ${HARD_MAX_TX_MINOR:100000}
+  hard-max-tx-minor: ${HARD_MAX_TX_MINOR:10000}
   fetch-allowed-hosts: ${FETCH_ALLOWED_HOSTS:localhost,127.0.0.1}
+  paypal:
+    mode: ${PAYPAL_MODE:mock}
+    base-url: ${PAYPAL_BASE_URL:https://api-m.sandbox.paypal.com}
+    client-id: ${PAYPAL_CLIENT_ID:}
+    client-secret: ${PAYPAL_CLIENT_SECRET:}
+  admin:
+    password: ${ADMIN_PASSWORD:admin}
+    session-secret: ${SESSION_SECRET:}
+  demo:
+    mode: ${DEMO_MODE:true}
+    agent-token: ${DEMO_AGENT_TOKEN:demo-token-change-me-32chars!!}
+    payee-devtools: ${DEMO_PAYEE_DEVTOOLS:devtools@example.com}
+    payee-conf: ${DEMO_PAYEE_CONF:conf@example.com}
+    payee-attacker: ${DEMO_PAYEE_ATTACKER:pay-me@evil-payments.example}
+  llm:
+    provider: ${LLM_PROVIDER:stub}
+    api-key: ${LLM_API_KEY:}
+logging:
+  level:
+    co.tz.kikomo: ${APP_LOG_LEVEL:INFO}
+    # Kikomo exposes only MCP tools; silence "no resource/prompt/complete methods found" startup warnings.
+    org.springframework.ai.mcp.annotation.provider: ERROR

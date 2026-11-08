@@ -1,12 +1,51 @@
 package co.tz.kikomo.paypal;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty; import org.springframework.stereotype.Component; import java.util.*;
-@Component @ConditionalOnProperty(name="kikomo.paypal-mode", havingValue="mock", matchIfMissing=true)
+
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+
+/** Offline PayPal used when {@code PAYPAL_MODE=mock}: no network, no money moves. */
 public class MockPayPalClient implements PayPalClient {
-  public boolean isMock(){ return true; }
-  public Map<String,Object> sendPayment(String e,long a,String c,String n){ return Map.of("id","MOCK-PAYOUT-"+UUID.randomUUID(),"status","SUCCESS","payee",e,"amount_minor",a,"currency",c); }
-  public Map<String,Object> createOrder(long a,String c,String e){ return Map.of("id","MOCK-ORDER-"+UUID.randomUUID(),"status","CREATED","amount_minor",a,"currency",c); }
-  public Map<String,Object> getOrder(String id){ return Map.of("id",id,"status","APPROVED","mock",true); }
-  public Map<String,Object> createInvoice(String e,long a,String c){ return Map.of("id","MOCK-INV-"+UUID.randomUUID(),"status","SENT","payee",e,"amount_minor",a); }
-  public Map<String,Object> createRefund(String cap,long a,String c){ return Map.of("id","MOCK-REF-"+UUID.randomUUID(),"status","COMPLETED","capture_id",cap,"amount_minor",a); }
-  public Map<String,Object> listTransactions(){ return Map.of("transactions",List.of(),"mock",true); }
+    private static final String KEY_ID = "id";
+    private static final String KEY_STATUS = "status";
+    private static final String KEY_PAYEE = "payee";
+    private static final String KEY_AMOUNT_MINOR = "amount_minor";
+    private static final String KEY_CURRENCY = "currency";
+    private static final String KEY_MOCK = "mock";
+
+    @Override
+    public boolean isMock() {
+        return true;
+    }
+
+    @Override
+    public Map<String, Object> sendPayment(String idempotencyKey, String payeeEmail, long amountMinor, String currency, String note) {
+        return Map.of(KEY_ID, "MOCK-PAYOUT-" + UUID.randomUUID(), KEY_STATUS, "SUCCESS", KEY_PAYEE, payeeEmail,
+                KEY_AMOUNT_MINOR, amountMinor, KEY_CURRENCY, currency);
+    }
+
+    @Override
+    public Map<String, Object> createOrder(String idempotencyKey, long amountMinor, String currency, String payeeEmail) {
+        return Map.of(KEY_ID, "MOCK-ORDER-" + UUID.randomUUID(), KEY_STATUS, "CREATED", KEY_AMOUNT_MINOR, amountMinor, KEY_CURRENCY, currency);
+    }
+
+    @Override
+    public Map<String, Object> getOrder(String orderId) {
+        return Map.of(KEY_ID, orderId, KEY_STATUS, "APPROVED", KEY_MOCK, true);
+    }
+
+    @Override
+    public Map<String, Object> createInvoice(String idempotencyKey, String payeeEmail, long amountMinor, String currency) {
+        return Map.of(KEY_ID, "MOCK-INV-" + UUID.randomUUID(), KEY_STATUS, "SENT", KEY_PAYEE, payeeEmail, KEY_AMOUNT_MINOR, amountMinor);
+    }
+
+    @Override
+    public Map<String, Object> createRefund(String idempotencyKey, String captureId, long amountMinor, String currency) {
+        return Map.of(KEY_ID, "MOCK-REF-" + UUID.randomUUID(), KEY_STATUS, "COMPLETED", "capture_id", captureId, KEY_AMOUNT_MINOR, amountMinor);
+    }
+
+    @Override
+    public Map<String, Object> listTransactions() {
+        return Map.of("transactions", List.of(), KEY_MOCK, true);
+    }
 }

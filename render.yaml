@@ -4,8 +4,11 @@ services:
     env: docker
     plan: starter
     dockerfilePath: ./Dockerfile
+    healthCheckPath: /api/health
     envVars:
       - key: PAYPAL_MODE
-        value: mock
+        value: live
       - key: PUBLIC_URL
         sync: false
+      - key: SESSION_SECRET
+        generateValue: true

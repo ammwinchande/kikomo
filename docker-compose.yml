@@ -1,19 +1,35 @@
 services:
   db:
-    image: postgres:16-alpine
+    image: postgres:18-alpine
     environment: { POSTGRES_DB: kikomo, POSTGRES_USER: kikomo, POSTGRES_PASSWORD: kikomo }
-    ports: ["5432:5432"]
-    volumes: ["pgdata:/var/lib/postgresql/data"]
+    ports: [ "5432:5432" ]
+    volumes: [ "pgdata:/var/lib/postgresql/data" ]
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U kikomo -d kikomo" ]
+      interval: 2s
+      timeout: 3s
+      retries: 30
   app:
     build: .
-    depends_on: [db]
+    depends_on:
+      db: { condition: service_healthy }
+    restart: on-failure
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/kikomo
       SPRING_DATASOURCE_USERNAME: kikomo
       SPRING_DATASOURCE_PASSWORD: kikomo
       PORT: "8080"
+      PUBLIC_URL: ${PUBLIC_URL:-http://localhost:8080}
       PAYPAL_MODE: ${PAYPAL_MODE:-mock}
+      PAYPAL_CLIENT_ID: ${PAYPAL_CLIENT_ID:-}
+      PAYPAL_CLIENT_SECRET: ${PAYPAL_CLIENT_SECRET:-}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-admin}
+      SESSION_SECRET: ${SESSION_SECRET:-}
       DEMO_AGENT_TOKEN: ${DEMO_AGENT_TOKEN:-demo-token-change-me-32chars!!}
-    ports: ["8080:8080"]
-volumes: { pgdata: {} }
+      DEMO_PAYEE_DEVTOOLS: ${DEMO_PAYEE_DEVTOOLS:-devtools@example.com}
+      DEMO_PAYEE_CONF: ${DEMO_PAYEE_CONF:-conf@example.com}
+      LLM_PROVIDER: ${LLM_PROVIDER:-stub}
+      LLM_API_KEY: ${LLM_API_KEY:-}
+      FETCH_ALLOWED_HOSTS: ${FETCH_ALLOWED_HOSTS:-localhost,127.0.0.1}
+    ports: [ "8080:8080" ]
+volumes: { pgdata: { } }

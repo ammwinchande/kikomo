@@ -1,20 +1,51 @@
 package co.tz.kikomo.config;
-import co.tz.kikomo.db.Repositories; import co.tz.kikomo.shared.Policy; import com.fasterxml.jackson.databind.ObjectMapper; import org.springframework.beans.factory.annotation.Value; import org.springframework.boot.CommandLineRunner; import org.springframework.jdbc.core.JdbcTemplate; import org.springframework.stereotype.Component; import java.util.*;
+
+import co.tz.kikomo.db.Agent;
+import co.tz.kikomo.db.AgentRepository;
+import co.tz.kikomo.db.PolicyRepository;
+import co.tz.kikomo.shared.AgentStatus;
+import co.tz.kikomo.shared.Policy;
+import org.jspecify.annotations.NonNull;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.boot.CommandLineRunner;
+import org.springframework.dao.DataAccessException;
+import org.springframework.stereotype.Component;
+
+import java.util.List;
+import java.util.UUID;
+
+/**
+ * Seeds the demo agent (DEMO_AGENT_TOKEN) and its demo policy (SPEC 6.1) if missing. Idempotent.
+ */
 @Component
 public class SeedRunner implements CommandLineRunner {
-  private final JdbcTemplate jdbc; private final Repositories repo; private final ObjectMapper mapper=new ObjectMapper();
-  @Value("${DEMO_AGENT_TOKEN:demo-token-change-me-32chars!!}") String demoToken;
-  @Value("${DEMO_PAYEE_DEVTOOLS:devtools@example.com}") String payee1;
-  @Value("${DEMO_PAYEE_CONF:conf@example.com}") String payee2;
-  public SeedRunner(JdbcTemplate jdbc, Repositories repo){ this.jdbc=jdbc; this.repo=repo; }
-  public void run(String... args){
-    try{
-      Integer count=jdbc.queryForObject("SELECT COUNT(*) FROM agents WHERE token_hash=?", Integer.class, Repositories.hashToken(demoToken));
-      UUID agentId;
-      if(count!=null&&count>0){ agentId=(UUID)jdbc.queryForList("SELECT id FROM agents WHERE token_hash=?", Repositories.hashToken(demoToken)).get(0).get("id"); }
-      else { agentId=UUID.randomUUID(); jdbc.update("INSERT INTO agents(id,name,token_hash,status) VALUES (?,?,?,'active')", agentId, "demo-agent", Repositories.hashToken(demoToken)); }
-      if(repo.activePolicy(agentId)==null){ repo.savePolicy(agentId, Policy.demo(List.of(payee1,payee2)), "demo policy", "active"); }
-      System.out.println("Seeded demo agent "+agentId);
-    }catch(Exception e){ System.out.println("Seed skipped: "+e.getMessage()); }
-  }
+    private static final Logger log = LoggerFactory.getLogger(SeedRunner.class);
+    private static final String DEMO_AGENT_NAME = "demo-agent";
+
+    private final AgentRepository agents;
+    private final PolicyRepository policies;
+    private final AppConfig.Demo demo;
+
+    public SeedRunner(AgentRepository agents, PolicyRepository policies, AppConfig config) {
+        this.agents = agents;
+        this.policies = policies;
+        this.demo = config.demo();
+    }
+
+    @Override
+    public void run(String @NonNull ... args) {
+        try {
+            UUID agentId = agents.findByToken(demo.agentToken())
+                    .map(Agent::id)
+                    .orElseGet(() -> agents.insert(DEMO_AGENT_NAME, demo.agentToken(), AgentStatus.ACTIVE));
+            if (policies.findActive(agentId).isEmpty()) {
+                policies.save(agentId, Policy.demo(List.of(demo.payeeDevtools(), demo.payeeConf())), "demo policy", "active");
+            }
+            log.info("Demo agent ready: {}", agentId);
+        } catch (DataAccessException e) {
+            // Seeding is a convenience; the gateway works without it, so do not stop startup.
+            log.error("Demo seed failed", e);
+        }
+    }
 }

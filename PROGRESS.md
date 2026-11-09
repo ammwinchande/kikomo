@@ -3,10 +3,10 @@
 - [x] Phase 0 Scaffold — `./gradlew runSpike` (mock) PASS via SpikeMain; Gradle wrapper vendored
 - [x] Phase 1 Engine — Evaluate/Normalize/Explain, 45 tests green (javac+JUnit run; see NOTES)
 - [x] Phase 2 Gateway — Flyway V1, JdbcTemplate repositories, GatewayManager, PayPal mock/live
-- [x] Phase 3 MCP — `/mcp` JSON-RPC, 8 tools, Bearer auth, 25s approval poll
+- [x] Phase 3 MCP — Spring AI stateless Streamable HTTP `/mcp`, 8 typed tools with schemas, Bearer auth filter, 25s approval wait
 - [x] Phase 4 Inbox — `/api/*`, Spring Security cookie session, kill switch
 - [x] Phase 5 Audit — hash chain, `stableStringify`, advisory lock, `/api/audit/verify`
-- [x] Phase 6 LLM UI — CompilePolicy (stub + OpenAI-compatible), React inbox builds (`npm run build` PASS)
+- [x] Phase 6 LLM UI — CompilePolicy (Spring AI structured output + stub fallback), React inbox builds (`npm run build` PASS)
 - [x] Phase 7 Freeze — `./gradlew check` BUILD SUCCESSFUL (2026-11-07, escalated run) + live HTTP E2E on Neon (see NOTES)
 
 ## Acceptance R1–R9
@@ -19,3 +19,47 @@
 - [x] R7 Policy compile returns draft only, never auto-activates
 - [x] R8 Mock mode shows MOCK PAYPAL banner
 - [ ] R9 Hosted Render demo (Neon DB live + verified; Render deploy still owner step, §16)
+
+## 2026-11-08 review: code standards, bug fixes, hardening, SPEC gaps
+
+Re-tested with `./gradlew test` (JUnit 5 unit tests + Testcontainers Postgres integration tests over real HTTP) and a
+Docker E2E (`docker compose up --build`, scripted MCP + admin API calls, mock PayPal). Details in NOTES.md.
+
+### Bugs (A)
+- [x] A1 audit INSERT (6 columns / 7 placeholders) — `AuditIntTest`, `GatewayIntTest.auditLogRecordsEveryCallAndVerifies`
+- [x] A2 amount overflow → negative spend — `EvaluateTest.overflowingAmount…`, `GatewayIntTest.overflowingAmountIsRejectedNotAllowed`
+- [x] A3 PayPal non-2xx treated as success — `LivePayPalClientTest.non2xxIsAnErrorNotASuccess`
+- [x] A4 locale-dependent amounts — `LivePayPalClientTest`, `NormalizeTest.moneyFormatIsLocaleIndependent`
+- [x] A5 DB failure after PayPal success marked `failed` — `CallExecutor` (only the side effect is in the failure path)
+- [x] A6 path injection via order/capture id — `GatewayIntTest.refundWithPathTraversalCaptureIdIsRejected`
+- [x] A7 unknown tool executed — `GatewayIntTest.unknownToolIsRejected`
+- [x] A8 expired approvals approvable / never expired — `ApiIntTest.expiredApprovalCannotBeApproved`, `ApprovalLifecycleIntTest.overdueApprovalsAreSweptToExpired`
+- [x] A9 locale-dependent payee lower-casing — `NormalizeTest.lowercasingIgnoresDefaultLocale`
+- [x] A10 non-transactional policy activation — `ApiIntTest.invalidPolicyIsBadRequest` (previous policy stays active)
+- [x] A11 `HARD_MAX_TX_MINOR` not enforced — `PolicyValidator`
+- [x] Audit append self-invocation bypassed the transaction (found during this work) — `AuditIntTest.concurrentAppendsKeepTheChainValid`
+
+### Code standards (B/C/D)
+- [x] Sonar findings from the review (S3776, S1192, S108, S2095, S2142, S8786, S107, S1118, S1659, S1481/S1854, S3358, S135, S9391, S6863, S3330/S4502 justified) and App.tsx (S6594, S7744, floating promises)
+- [x] Enums for decision / call / approval / agent status; typed records + RowMappers; repositories split per table
+- [x] One injected Jackson 3 `JsonMapper`; one shared `HttpClient` bean with timeouts; one `Hashing` utility
+- [x] Validated `@ConfigurationProperties` (`AppConfig`) + `StartupValidator` (SPEC §4)
+- [x] RFC 9457 problem details: 400/401/404/409, reference id for 500s; no silent catches; decision logging
+
+### Production hardening (E)
+- [x] Timeouts, shared HttpClient, OAuth token cache, `PayPal-Request-Id` idempotency
+- [x] SSRF: no forced localhost, http(s) only, no redirects, 1 MB limit, linear e-mail extraction
+- [x] Per-agent advisory lock + reserved spend — `ApprovalLifecycleIntTest.concurrentPaymentsCannotOverspendTheDailyBudget`
+- [x] `executing` status before PayPal (Flyway V2) + unique ledger row per call
+- [x] `list_transactions` uses a valid 30-day window
+
+### SPEC gaps (F)
+- [x] Spring Boot 4.1.2 + Spring AI 2.0.2 (MCP server + structured-output policy compiler)
+- [x] Real MCP input schemas — `McpIntTest.toolsListExposesAllEightToolsWithSchemas`, `sendPaymentSchemaDescribesItsArguments`
+- [x] `kikomo_fetch_url` through the gateway (calls + audit) — `GatewayIntTest.injectedPayeeFromFetchedPageIsDenied`, `fetchOfDisallowedHostIsBlocked`
+- [x] Approval after the 25s wait still executes — `ApprovalLifecycleIntTest.approvalAfterAgentStoppedWaitingStillExecutesExactlyOnce`
+- [x] 40+ Evaluate cases (42) — `EvaluateTest`
+- [x] Testcontainers DB tests — `support/IntegrationTestBase` + `integration/*`
+- [x] `runSpike` hits the sandbox in live mode (OAuth + create/get order)
+- [x] Docker image builds the SPA; Gradle wrapper fixed; compose waits for a healthy DB
+- [ ] Frontend follow-ups for the new error codes (NOTES.md, "Frontend follow-ups")

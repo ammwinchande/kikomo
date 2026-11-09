@@ -45,7 +45,7 @@ spring:
           temperature: 0
 kikomo:
   public-url: ${PUBLIC_URL:http://localhost:8080}
-  hard-max-tx-minor: ${HARD_MAX_TX_MINOR:10000}
+  hard-max-tx-minor: ${HARD_MAX_TX_MINOR:100000}
   fetch-allowed-hosts: ${FETCH_ALLOWED_HOSTS:localhost,127.0.0.1}
   paypal:
     mode: ${PAYPAL_MODE:mock}

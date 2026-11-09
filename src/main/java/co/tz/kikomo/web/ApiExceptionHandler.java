@@ -19,7 +19,7 @@ import java.util.UUID;
  * {@link ResponseEntityExceptionHandler} (400). Unexpected errors are logged with a reference id that is returned
  * to the client instead of internal details.
  */
-@RestControllerAdvice(basePackages = "co.tz.kikomo.web")
+@RestControllerAdvice(basePackages = "co.tz.kikomo")
 public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
     private static final Logger log = LoggerFactory.getLogger(ApiExceptionHandler.class);
 

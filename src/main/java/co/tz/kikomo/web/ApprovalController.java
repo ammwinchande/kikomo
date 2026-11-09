@@ -1,6 +1,9 @@
 package co.tz.kikomo.web;
 
+import co.tz.kikomo.db.Approval;
 import co.tz.kikomo.db.ApprovalRepository;
+import co.tz.kikomo.db.CallRecord;
+import co.tz.kikomo.db.CallRepository;
 import co.tz.kikomo.gateway.ApprovalService;
 import co.tz.kikomo.shared.ApprovalStatus;
 import co.tz.kikomo.web.dto.ApprovalView;
@@ -8,6 +11,8 @@ import co.tz.kikomo.web.dto.OkResponse;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 import java.util.UUID;
 
 /**
@@ -23,10 +28,12 @@ public class ApprovalController {
     static final String DECIDED_BY = "admin";
 
     private final ApprovalRepository approvals;
+    private final CallRepository calls;
     private final ApprovalService approvalService;
 
-    public ApprovalController(ApprovalRepository approvals, ApprovalService approvalService) {
+    public ApprovalController(ApprovalRepository approvals, CallRepository calls, ApprovalService approvalService) {
         this.approvals = approvals;
+        this.calls = calls;
         this.approvalService = approvalService;
     }
 
@@ -36,7 +43,10 @@ public class ApprovalController {
     @GetMapping
     public List<ApprovalView> list(@RequestParam(value = "status", required = false) String status) {
         ApprovalStatus filter = status == null ? null : ApprovalStatus.fromValue(status);
-        return approvals.findRecent(filter).stream().map(ApprovalView::of).toList();
+        List<Approval> recent = approvals.findRecent(filter);
+        Map<UUID, CallRecord> byId = calls.findByIds(recent.stream().map(Approval::callId).toList()).stream()
+                .collect(Collectors.toMap(CallRecord::id, c -> c));
+        return recent.stream().map(a -> ApprovalView.of(a, byId.get(a.callId()))).toList();
     }
 
     /**

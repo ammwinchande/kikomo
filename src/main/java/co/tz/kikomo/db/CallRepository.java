@@ -11,7 +11,10 @@ import java.sql.Array;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.OffsetDateTime;
+import java.util.Collection;
+import java.util.EnumMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -70,6 +73,27 @@ public class CallRepository {
 
     public Optional<CallRecord> findById(UUID id) {
         return jdbc.query(DB_SELECT_STMT + COLUMNS + " FROM calls WHERE id = ?", MAPPER, id).stream().findFirst();
+    }
+
+    /** The given calls in no particular order; unknown ids are skipped. */
+    public List<CallRecord> findByIds(Collection<UUID> ids) {
+        if (ids.isEmpty()) return List.of();
+        UUID[] array = ids.toArray(new UUID[0]);
+        return jdbc.query(con -> {
+            var ps = con.prepareStatement(DB_SELECT_STMT + COLUMNS + " FROM calls WHERE id = ANY(?)");
+            ps.setArray(1, con.createArrayOf("uuid", array));
+            return ps;
+        }, MAPPER);
+    }
+
+    /** Calls made since the start of the database day, grouped by decision (same day boundary as the daily budget). */
+    public Map<Decision, Long> countTodayByDecision() {
+        Map<Decision, Long> counts = new EnumMap<>(Decision.class);
+        jdbc.query("SELECT decision, COUNT(*) AS n FROM calls WHERE created_at >= date_trunc('day', now()) GROUP BY decision",
+                rs -> {
+                    counts.put(Decision.fromValue(rs.getString("decision")), rs.getLong("n"));
+                });
+        return counts;
     }
 
     public List<CallRecord> findRecent(UUID agentIdOrNull) {

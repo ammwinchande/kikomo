@@ -1,5 +1,6 @@
 package co.tz.kikomo.audit;
 
+import co.tz.kikomo.web.dto.AuditEntryView;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataAccessException;
@@ -11,6 +12,7 @@ import tools.jackson.core.JacksonException;
 import tools.jackson.databind.json.JsonMapper;
 
 import java.sql.PreparedStatement;
+import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -80,6 +82,23 @@ public class AuditService {
         } catch (DataAccessException | JacksonException e) {
             log.error("AUDIT APPEND FAILED event={} agent={} payload={}", eventType, agentId, payload, e);
         }
+    }
+
+    /**
+     * The {@code limit} most recent entries, returned oldest first.
+     */
+    @Transactional(readOnly = true)
+    public List<AuditEntryView> listRecent(int limit) {
+        List<AuditEntryView> newestFirst = jdbc.query(
+                "SELECT seq, ts, agent_id, event_type, payload::text AS payload, prev_hash, hash FROM audit_log ORDER BY seq DESC LIMIT ?",
+                (rs, i) -> {
+                    UUID agentId = rs.getObject("agent_id", UUID.class);
+                    OffsetDateTime ts = rs.getObject("ts", OffsetDateTime.class);
+                    return new AuditEntryView(rs.getLong("seq"), ts == null ? null : ts.toInstant().toString(),
+                            agentId == null ? null : agentId.toString(), rs.getString("event_type"), rs.getString("payload"),
+                            rs.getString("prev_hash"), rs.getString("hash"));
+                }, limit);
+        return newestFirst.reversed();
     }
 
     /**

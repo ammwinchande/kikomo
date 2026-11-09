@@ -45,6 +45,11 @@ public class ApprovalRepository {
         return jdbc.query(DB_SELECT_STMT + COLUMNS + " FROM approvals WHERE call_id = ?", MAPPER, callId).stream().findFirst();
     }
 
+    public long countPending() {
+        Long n = jdbc.queryForObject("SELECT COUNT(*) FROM approvals WHERE status = 'pending'", Long.class);
+        return n == null ? 0 : n;
+    }
+
     public List<Approval> findRecent(ApprovalStatus statusOrNull) {
         if (statusOrNull == null) {
             return jdbc.query(DB_SELECT_STMT + COLUMNS + " FROM approvals ORDER BY created_at DESC LIMIT " + LIST_LIMIT, MAPPER);

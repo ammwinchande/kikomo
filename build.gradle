@@ -5,7 +5,7 @@ plugins {
 }
 
 group = 'co.tz.kikomo'
-version = '0.1.0-SNAPSHOT'
+version = '1.0.0'
 
 java { sourceCompatibility = '21' }
 
@@ -46,12 +46,20 @@ tasks.register('runSpike', JavaExec) {
     classpath = sourceSets.main.runtimeClasspath
     mainClass = 'co.tz.kikomo.spike.SpikeMain'
 }
+tasks.register('frontendTest', Exec) {
+    group = 'verification'; description = 'Typecheck + Vitest for the React SPA if npm available'
+    workingDir file('src/frontend')
+    commandLine 'sh', '-c', 'if [ -f package.json ] && command -v npm >/dev/null; then npm install --silent --no-audit --no-fund && npm run typecheck && npm test; else echo "frontend tests skipped (no npm)"; fi'
+    inputs.dir('src/frontend/src'); inputs.files('src/frontend/package.json', 'src/frontend/tsconfig.json', 'src/frontend/vite.config.ts')
+    outputs.upToDateWhen { false }
+}
 tasks.register('frontendBuild', Exec) {
     group = 'build'; description = 'Build React SPA if npm available'
     workingDir file('src/frontend')
-    commandLine 'sh', '-c', 'if [ -f package.json ] && command -v npm >/dev/null; then npm install --silent && npm run build; else echo "frontend build skipped (no npm)"; fi'
+    commandLine 'sh', '-c', 'if [ -f package.json ] && command -v npm >/dev/null; then npm install --silent --no-audit --no-fund && npm run build; else echo "frontend build skipped (no npm)"; fi'
     inputs.dir('src/frontend/src'); outputs.dir('src/frontend/dist')
 }
+tasks.named('check') { dependsOn 'frontendTest' }
 tasks.register('copyFrontend', Copy) {
     dependsOn 'frontendBuild'
     from('src/frontend/dist'); into('src/main/resources/static')

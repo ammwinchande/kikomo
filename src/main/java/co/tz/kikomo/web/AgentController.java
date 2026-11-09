@@ -3,6 +3,8 @@ package co.tz.kikomo.web;
 import co.tz.kikomo.audit.AuditEvent;
 import co.tz.kikomo.audit.AuditService;
 import co.tz.kikomo.db.AgentRepository;
+import co.tz.kikomo.db.LedgerRepository;
+import co.tz.kikomo.db.PolicyRepository;
 import co.tz.kikomo.shared.AgentStatus;
 import co.tz.kikomo.shared.error.NotFoundException;
 import co.tz.kikomo.web.dto.AgentStatusResponse;
@@ -25,16 +27,22 @@ public class AgentController {
     private static final Logger log = LoggerFactory.getLogger(AgentController.class);
 
     private final AgentRepository agents;
+    private final PolicyRepository policies;
+    private final LedgerRepository ledger;
     private final AuditService audit;
 
-    public AgentController(AgentRepository agents, AuditService audit) {
+    public AgentController(AgentRepository agents, PolicyRepository policies, LedgerRepository ledger, AuditService audit) {
         this.agents = agents;
+        this.policies = policies;
+        this.ledger = ledger;
         this.audit = audit;
     }
 
     @GetMapping
     public List<AgentView> list() {
-        return agents.findAll().stream().map(AgentView::of).toList();
+        return agents.findAll().stream()
+                .map(a -> AgentView.of(a, ledger.spentToday(a.id()), policies.findActive(a.id()).orElse(null)))
+                .toList();
     }
 
     @PostMapping("/{id}/suspend")

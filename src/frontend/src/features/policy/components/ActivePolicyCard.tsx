@@ -7,8 +7,8 @@ export default function ActivePolicyCard({policy, loading}: Readonly<{
   policy: Policy | null | undefined;
   loading: boolean
 }>) {
-  function renderPolicies(policy: any) {
-    if (policy) {
+  function renderPolicies(policy: Policy | null | undefined) {
+    if (!policy) {
       return <p className="text-sm text-muted">No active policy. Nothing is allowed until one is confirmed.</p>;
     }
     return (

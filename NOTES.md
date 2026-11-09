@@ -6,7 +6,7 @@
    `ADMIN_PASSWORD` is set and not `admin`, `SESSION_SECRET` is ≥ 32 chars, `DEMO_AGENT_TOKEN` is ≥ 32 chars and not
    the published default, and `PAYPAL_CLIENT_ID`/`PAYPAL_CLIENT_SECRET` are set (`StartupValidator`). In mock mode the
    same problems are only logged as warnings.
-   **Current `.env.local` is live mode without `SESSION_SECRET` and `DEMO_AGENT_TOKEN`; add both before restarting.**
+   `.env.local` now sets `SESSION_SECRET` and `DEMO_AGENT_TOKEN` (added 2026-11-09); check they are 32+ chars.
    Render: `SESSION_SECRET` is generated (`render.yaml`); set `DEMO_AGENT_TOKEN` and `ADMIN_PASSWORD` in the dashboard.
 2. **Flyway V2 runs on first start** (`V2__executing_status_and_indexes.sql`, additive): adds the `executing` call
    status, a unique spend-ledger row per call, and indexes. It replaces the constraint named `calls_status_check`
@@ -76,22 +76,32 @@
   problem details; unexpected errors return a `reference` id that is logged with the stack trace.
 - `/api/approvals` `expires_at` is ISO-8601 (`2026-11-08T07:15:00Z`); was `2026-11-08 07:15:00.0`.
 
-## Frontend follow-ups (not done yet; backend changes above are compatible with the current SPA)
-- [ ] `api()` should check `r.ok`: on **401** return to the login screen (session expired / server restart),
-      on 4xx/5xx show `detail` from the problem-details body instead of rendering it as data (e.g. `calls.map` on an
-      error object).
-- [ ] Approve/Deny: show **409** "already decided / expired" and **404** messages to the admin.
-- [ ] Persist login across page reloads: probe an authenticated endpoint on load instead of `loggedIn=false`.
-- [ ] Show approval context (tool, amount, payee, reasons, `expires_at` countdown) in the inbox; today only the id.
-- [ ] Policy compiler: show `compiler: "stub"` (offline draft / LLM fallback) and validation `errors` on activate;
+## Frontend follow-ups (all done in the 2026-11-09 admin portal)
+- [x] `api()` checks `r.ok`: `shared/api/client.ts` throws `ApiError{status, problem}`; **401/403** notify the auth
+      store so `RequireAuth` returns to `/login`; other 4xx/5xx surface the problem-details `detail` as a toast via the
+      QueryClient `onError` (covered by `client.test.ts`).
+- [x] Approve/Deny: show **409** "already decided / expired" and **404** messages to the admin.
+- [x] Persist login across page reloads: probe an authenticated endpoint on load instead of `loggedIn=false`.
+- [x] Show approval context (tool, amount, payee, reasons, `expires_at` countdown) in the inbox; today only the id.
+- [x] Policy compiler: show `compiler: "stub"` (offline draft / LLM fallback) and validation `errors` on activate;
       add an "Activate" button (`POST /api/policies/{agentId}/activate`).
-- [ ] Logout button (`POST /api/auth/logout`).
-- [ ] Replace `any` types with interfaces for the API DTOs (`CallView`, `ApprovalView`, `AgentView`, ...).
+- [x] Logout button (`POST /api/auth/logout`).
+- [x] Replace `any` types with interfaces for the API DTOs (`CallView`, `ApprovalView`, `AgentView`, ...).
+
+## Admin portal (2026-11-09)
+- Demo runner (`co.tz.kikomo.demo`): the scripted agent calls `http://localhost:{port}/mcp` with the demo agent's
+  token, so its calls/approvals/audit rows are indistinguishable from an external agent's. Runs are in memory (50
+  kept). A large payment keeps the run `running` until a human decides, even after the agent's 25 s wait. Every
+  `/api/demo/**` endpoint is 404 when `DEMO_MODE=false`; `/api/demo/connect` never returns the token. The seeded demo
+  policy allows 5 calls/min and $600/day, so "Run all" twice within a minute shows `VELOCITY_EXCEEDED` — that is
+  the engine working, not a bug.
+- "Simulate tampering" on the Audit page is client-side only (`audit_log` is append-only); Verify always calls the
+  real `/api/audit/verify`.
+- Frontend tests: `npm --prefix src/frontend test`; `./gradlew check` runs them via `frontendTest` when npm exists.
 
 ## Remaining SPEC gaps (deliberately not done)
-- §2 node-gradle plugin (see Choices), §2 MCP stdio entry, §4 `DEMO_MODE`-gated `/api/demo/*` endpoints and §14
-  `DemoController` + Java scripted demo agent (the E2E script used for verification lives outside the repo).
-- §10 tamper demo endpoints.
+- §2 node-gradle plugin (see Choices), §2 MCP stdio entry.
+- §10 tamper demo endpoints (the UI simulates tampering client-side instead; the table is append-only).
 
 ## Needs the owner
 - PayPal sandbox `PAYPAL_CLIENT_ID` / `PAYPAL_CLIENT_SECRET` (else `PAYPAL_MODE=mock` + MOCK banner).

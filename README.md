@@ -36,10 +36,20 @@ Tools: `send_payment`, `create_order`, `get_order`, `create_invoice`, `create_re
 
 Demo scenarios: small payment (allow), large payment (approval in inbox), injection — fetch `/demo/malicious-page` via `kikomo_fetch_url`, then try paying the attacker payee (denied `UNTRUSTED_COUNTERPARTY`).
 
+## Admin portal
+
+`http://localhost:8080` serves the React admin portal (sign in with `ADMIN_PASSWORD`). Pages: **Approvals** (inbox with
+countdowns, reasons, kill switch, policy summary), **Activity** (every call and a Why panel with the reason codes, policy
+values and the agent's arguments), **Audit** (hash-chained log, Verify chain, client-side tamper simulation), **Policy**
+(sentence → AI/stub draft → diff → confirm) and **Demo** (scripted agent that runs the small / large / injection scenarios
+over real MCP; off when `DEMO_MODE=false`). Source in `src/frontend` (feature folders, TanStack Query for server state,
+Zustand for UI state). Dev loop: `npm --prefix src/frontend run dev` (proxies `/api`, `/mcp`, `/demo` to :8080).
+
 ## Tests
 
 ```bash
-./gradlew check      # unit tests + Postgres integration tests (Testcontainers: needs Docker running)
+./gradlew check      # unit tests + Postgres integration tests (Testcontainers: needs Docker running) + frontend typecheck/Vitest
+npm --prefix src/frontend test   # frontend tests only (Vitest + Testing Library + MSW)
 ./gradlew runSpike   # PayPal sandbox spike: mock by default; PAYPAL_MODE=live hits the sandbox
 ```
 

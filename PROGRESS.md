@@ -62,4 +62,17 @@ Docker E2E (`docker compose up --build`, scripted MCP + admin API calls, mock Pa
 - [x] Testcontainers DB tests — `support/IntegrationTestBase` + `integration/*`
 - [x] `runSpike` hits the sandbox in live mode (OAuth + create/get order)
 - [x] Docker image builds the SPA; Gradle wrapper fixed; compose waits for a healthy DB
-- [ ] Frontend follow-ups for the new error codes (NOTES.md, "Frontend follow-ups")
+- [x] Frontend follow-ups for the new error codes — done in the 2026-11-09 admin portal redesign (below)
+
+## 2026-11-09 admin portal redesign (tmp/Kikomo Admin Portal.html, 6 boards)
+- [x] Backend: `GET /api/auth/session`, richer `CallView` (`currency`, `category`, `args`, `result`, `approval_id`,
+      `created_at`, `explanation`), `ApprovalView` embeds its `call`, `AgentView` has `spent_today_minor` /
+      `daily_budget_minor` / `policy_version`, `GET /api/stats`, `GET /api/audit/entries`, `DemoController` +
+      `DemoRunService` (SPEC §14 scripted agent over loopback MCP, 404 when `DEMO_MODE=false`), `SpaController`
+      forwards the SPA routes — `ApiIntTest` (17), `DemoIntTest` (8), `DemoModeOffIntTest` (1)
+- [x] `application.yml` `HARD_MAX_TX_MINOR` default restored to 100000 (SPEC §4); 10000 made the $500 demo policy
+      un-activatable (`ApiIntTest.activatingValidPolicyWorks` was failing)
+- [x] `ApiExceptionHandler` now covers every controller package (demo endpoints returned 500 instead of 404/400)
+- [x] Frontend rewritten: feature folders, TanStack Query (server state), Zustand (UI state), react-router,
+      Tailwind design tokens from the boards; 6 pages (sign in, approvals, activity + why panel, audit chain,
+      policy compiler, demo runner); Vitest + Testing Library + MSW, 53 tests, run by `./gradlew check`

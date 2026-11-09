@@ -1,50 +1,112 @@
 package co.tz.kikomo.audit;
-import com.fasterxml.jackson.databind.*; import org.springframework.jdbc.core.JdbcTemplate; import org.springframework.stereotype.Service; import org.springframework.transaction.annotation.Transactional;
-import java.nio.charset.StandardCharsets; import java.security.MessageDigest; import java.util.*;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.dao.DataAccessException;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.json.JsonMapper;
+
+import java.sql.PreparedStatement;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
+
+/**
+ * Append-only, hash-chained audit log (SPEC section 10).
+ */
 @Service
 public class AuditService {
-  private final JdbcTemplate jdbc; private final ObjectMapper mapper=new ObjectMapper();
-  public AuditService(JdbcTemplate jdbc){ this.jdbc=jdbc; }
-  public static String stableStringify(Object node){
-    try{ ObjectMapper m=new ObjectMapper(); m.configure(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS,true);
-      JsonNode n=m.valueToTree(node); return writeSorted(m,n); }catch(Exception e){ throw new RuntimeException(e); }
-  }
-  private static String writeSorted(ObjectMapper m, JsonNode n) throws Exception {
-    if(n.isObject()){ List<String> keys=new ArrayList<>(); n.fieldNames().forEachRemaining(keys::add); Collections.sort(keys);
-      StringBuilder sb=new StringBuilder("{"); boolean first=true;
-      for(String k:keys){ if(!first) sb.append(","); first=false; sb.append(m.writeValueAsString(k)).append(":").append(writeSorted(m,n.get(k))); } return sb.append("}").toString(); }
-    if(n.isArray()){ StringBuilder sb=new StringBuilder("["); boolean first=true; for(JsonNode e:n){ if(!first) sb.append(","); first=false; sb.append(writeSorted(m,e)); } return sb.append("]").toString(); }
-    return m.writeValueAsString(n);
-  }
-  public static String sha256(String s){ try{ var d=MessageDigest.getInstance("SHA-256"); return HexFormat.of().formatHex(d.digest(s.getBytes(StandardCharsets.UTF_8))); }catch(Exception e){ throw new RuntimeException(e);} }
-  @Transactional public long append(UUID agentId, String eventType, Object payload){
-    jdbc.queryForObject("SELECT pg_advisory_xact_lock(424242)", Integer.class);
-    List<Map<String,Object>> last=jdbc.queryForList("SELECT seq, hash FROM audit_log ORDER BY seq DESC LIMIT 1");
-    long seq=1; String prev="0".repeat(64);
-    if(!last.isEmpty()){ seq=((Number)last.get(0).get("seq")).longValue()+1; prev=(String)last.get(0).get("hash"); }
-    String payloadJson=stableStringify(payload);
-    String hash=sha256(prev+"|"+seq+"|"+eventType+"|"+payloadJson);
-    jdbc.update("INSERT INTO audit_log(seq,agent_id,event_type,payload,prev_hash,hash) VALUES (?,?,?,?,?::jsonb,?,?)", seq, agentId, eventType, payloadJson, prev, hash);
-    return seq;
-  }
-  // In-memory chain for tests / H2 fallback
-  public record Entry(long seq,String prevHash,String hash,String eventType,String payloadJson){}
-  public static List<Entry> buildChain(List<String[]> events){
-    List<Entry> out=new ArrayList<>(); String prev="0".repeat(64); long seq=1;
-    for(String[] e: events){ String h=sha256(prev+"|"+seq+"|"+e[0]+"|"+e[1]); out.add(new Entry(seq,prev,h,e[0],e[1])); prev=h; seq++; } return out;
-  }
-  public static boolean verifyChain(List<Entry> chain){
-    String prev="0".repeat(64);
-    for(Entry e: chain){ if(!e.prevHash().equals(prev)) return false; if(!e.hash().equals(sha256(prev+"|"+e.seq()+"|"+e.eventType()+"|"+e.payloadJson()))) return false; prev=e.hash(); } return true;
-  }
-  public boolean verify(){
-    try{ var rows=jdbc.queryForList("SELECT seq,event_type,payload::text AS p,prev_hash,hash FROM audit_log ORDER BY seq ASC");
-      String prev="0".repeat(64);
-      for(var r: rows){ long seq=((Number)r.get("seq")).longValue(); String ph=(String)r.get("prev_hash"); String h=(String)r.get("hash");
-        if(!ph.equals(prev)) return false; String payloadJson=stableStringify(mapper.readTree((String)r.get("p")));
-        // payload stored already sorted; recompute with stored text normalized
-        String expected=sha256(prev+"|"+seq+"|"+r.get("event_type")+"|"+payloadJson);
-        if(!expected.equals(h)) return false; prev=h; } return true;
-    }catch(Exception e){ return false; }
-  }
+    private static final Logger log = LoggerFactory.getLogger(AuditService.class);
+    /**
+     * Global advisory lock serialising appends so seq/prev_hash stay consistent.
+     */
+    private static final long APPEND_LOCK_KEY = 424242L;
+    private static final int VERIFY_FETCH_SIZE = 500;
+    private static final String VERIFY_SQL = "SELECT seq, event_type, payload::text AS payload, prev_hash, hash FROM audit_log ORDER BY seq";
+
+    private final JdbcTemplate jdbc;
+    private final JsonMapper json;
+    private final TransactionTemplate tx;
+
+    public AuditService(JdbcTemplate jdbc, JsonMapper json, TransactionTemplate tx) {
+        this.jdbc = jdbc;
+        this.json = json;
+        this.tx = tx;
+    }
+
+    /**
+     * Appends an event. Joins the caller's transaction when there is one, so an event and the state change it
+     * describes commit (or roll back) together.
+     *
+     * @return the sequence number of the new entry
+     */
+    public long append(UUID agentId, String eventType, Map<String, ?> payload) {
+        // TransactionTemplate (not @Transactional) so the advisory lock is held even for internal calls such as
+        // appendQuietly, which would bypass the Spring proxy.
+        Long seq = tx.execute(status -> appendInTransaction(agentId, eventType, payload));
+        return seq == null ? 0 : seq;
+    }
+
+    private long appendInTransaction(UUID agentId, String eventType, Map<String, ?> payload) {
+        jdbc.queryForList("SELECT pg_advisory_xact_lock(?)", APPEND_LOCK_KEY);
+        List<Map<String, Object>> last = jdbc.queryForList("SELECT seq, hash FROM audit_log ORDER BY seq DESC LIMIT 1");
+        long seq = 1;
+        String prevHash = AuditChain.GENESIS_HASH;
+        if (!last.isEmpty()) {
+            seq = ((Number) last.getFirst().get("seq")).longValue() + 1;
+            prevHash = (String) last.getFirst().get("hash");
+        }
+        String payloadJson = AuditChain.stableStringify(payload);
+        String hash = AuditChain.hash(prevHash, seq, eventType, payloadJson);
+        jdbc.update("INSERT INTO audit_log(seq, agent_id, event_type, payload, prev_hash, hash) VALUES (?, ?, ?, ?::jsonb, ?, ?)",
+                seq, agentId, eventType, payloadJson, prevHash, hash);
+        return seq;
+    }
+
+    /**
+     * Best-effort append for events recorded after money has already moved: a failure here must not turn a
+     * successful payment into an error, so it is logged loudly instead of thrown.
+     */
+    public void appendQuietly(UUID agentId, String eventType, Map<String, ?> payload) {
+        try {
+            append(agentId, eventType, payload);
+        } catch (DataAccessException | JacksonException e) {
+            log.error("AUDIT APPEND FAILED event={} agent={} payload={}", eventType, agentId, payload, e);
+        }
+    }
+
+    /**
+     * Streams the whole chain in seq order and recomputes every hash.
+     */
+    @Transactional(readOnly = true)
+    public boolean verify() {
+        AtomicReference<String> prev = new AtomicReference<>(AuditChain.GENESIS_HASH);
+        AtomicLong expectedSeq = new AtomicLong(1);
+        AtomicBoolean valid = new AtomicBoolean(true);
+        // Postgres streams rows (instead of loading the whole table) when a fetch size is set inside a transaction.
+        jdbc.query(con -> {
+            PreparedStatement ps = con.prepareStatement(VERIFY_SQL);
+            ps.setFetchSize(VERIFY_FETCH_SIZE);
+            return ps;
+        }, rs -> {
+            if (!valid.get()) return;
+            long seq = rs.getLong("seq");
+            String payloadJson = AuditChain.stableStringify(json.readTree(rs.getString("payload")));
+            String expected = AuditChain.hash(prev.get(), seq, rs.getString("event_type"), payloadJson);
+            if (seq != expectedSeq.getAndIncrement() || !prev.get().equals(rs.getString("prev_hash")) || !expected.equals(rs.getString("hash"))) {
+                log.warn("Audit chain broken at seq={}", seq);
+                valid.set(false);
+                return;
+            }
+            prev.set(expected);
+        });
+        return valid.get();
+    }
 }

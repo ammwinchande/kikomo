@@ -156,7 +156,7 @@ public class DemoRunService {
 
     // ---------- step helpers ----------
 
-    private void large(DemoRun run) throws InterruptedException, IllegalStateException {
+    private void large(DemoRun run) throws InterruptedException, IllegalStateException, ExecutionException, TimeoutException {
         String payee = config.demo().payeeConf();
         UUID demoAgentId = agents.findByToken(config.demo().agentToken()).orElseThrow(
                 () -> new IllegalStateException("demo agent is not seeded")).id();

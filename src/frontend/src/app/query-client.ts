@@ -17,7 +17,7 @@ export function createQueryClient(): QueryClient {
       mutations: { retry: 0 },
     },
     queryCache: new QueryCache({
-      onError: (error, query) => {
+      onError: (error: any, query: any) => {
         // Background refetch failures of auth-gated data are expected right after logout; stay quiet for those.
         if (error instanceof ApiError && (error.status === 401 || error.status === 403)) return;
         if (query.meta?.silent) return;
@@ -25,7 +25,7 @@ export function createQueryClient(): QueryClient {
       },
     }),
     mutationCache: new MutationCache({
-      onError: (error, _vars, _ctx, mutation) => {
+      onError: (error: any, _vars: any, _ctx: any, mutation: any) => {
         if (mutation.meta?.silent) return;
         toast(describe(error), 'error');
       },

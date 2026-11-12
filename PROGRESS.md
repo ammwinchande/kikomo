@@ -76,3 +76,10 @@ Docker E2E (`docker compose up --build`, scripted MCP + admin API calls, mock Pa
 - [x] Frontend rewritten: feature folders, TanStack Query (server state), Zustand (UI state), react-router,
       Tailwind design tokens from the boards; 6 pages (sign in, approvals, activity + why panel, audit chain,
       policy compiler, demo runner); Vitest + Testing Library + MSW, 53 tests, run by `./gradlew check`
+
+## 2026-11-12 deployment readiness
+- [x] `./gradlew clean check bootJar` passes with frontend assets present in the JAR (134 backend + 53 frontend tests)
+- [x] Docker image builds using the prebuilt SPA and Gradle resource sync
+- [x] Compose starts Postgres 18 with the corrected persistent volume mount; migrations/login/assets and restart persistence pass
+- [x] Render Blueprint validates against the official JSON Schema and declares required deployment settings without committed secrets
+- [ ] Hosted Render + Neon + live sandbox/LLM verification (R9; requires deployment credentials)

@@ -336,7 +336,7 @@ Without Docker: `./gradlew bootRun`.
 
 **Hosted (Render):**
 
-* `render.yaml` must use `env: docker`.
+* `render.yaml` must use `runtime: docker` (the current Render field; it replaces the deprecated `env: docker`).
 
 * `Dockerfile`:
 

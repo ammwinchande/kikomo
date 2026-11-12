@@ -1,14 +1,53 @@
 services:
   - type: web
     name: kikomo
-    env: docker
+    runtime: docker
     plan: starter
     dockerfilePath: ./Dockerfile
     healthCheckPath: /api/health
     envVars:
+      # Use Neon's direct (non-pooler) endpoint, with sslmode=require.
+      - key: SPRING_DATASOURCE_URL
+        sync: false
+      - key: SPRING_DATASOURCE_USERNAME
+        sync: false
+      - key: SPRING_DATASOURCE_PASSWORD
+        sync: false
+      # The real HTTPS Render URL also enables Secure admin/CSRF cookies.
+      - key: PUBLIC_URL
+        sync: false
       - key: PAYPAL_MODE
         value: live
-      - key: PUBLIC_URL
+      - key: PAYPAL_BASE_URL
+        value: https://api-m.sandbox.paypal.com
+      - key: PAYPAL_CLIENT_ID
+        sync: false
+      - key: PAYPAL_CLIENT_SECRET
+        sync: false
+      - key: ADMIN_PASSWORD
         sync: false
       - key: SESSION_SECRET
         generateValue: true
+      - key: DEMO_AGENT_TOKEN
+        generateValue: true
+      - key: DEMO_PAYEE_DEVTOOLS
+        sync: false
+      - key: DEMO_PAYEE_CONF
+        sync: false
+      - key: DEMO_PAYEE_ATTACKER
+        value: pay-me@evil-payments.example
+      - key: DEMO_MODE
+        value: "true"
+      - key: LLM_PROVIDER
+        value: meta
+      - key: LLM_API_KEY
+        sync: false
+      - key: LLM_BASE_URL
+        value: https://api.meta.ai/v1
+      - key: LLM_MODEL
+        value: muse-spark-1.2-contributor
+      - key: HARD_MAX_TX_MINOR
+        value: "100000"
+      # The demo runner fetches its local malicious page; PUBLIC_URL's host is added by AppConfig.
+      - key: FETCH_ALLOWED_HOSTS
+        value: localhost,127.0.0.1

@@ -46,24 +46,37 @@ tasks.register('runSpike', JavaExec) {
     classpath = sourceSets.main.runtimeClasspath
     mainClass = 'co.tz.kikomo.spike.SpikeMain'
 }
-tasks.register('frontendTest', Exec) {
-    group = 'verification'; description = 'Typecheck + Vitest for the React SPA if npm available'
+tasks.register('frontendInstall', Exec) {
+    group = 'build'; description = 'Install the locked frontend dependencies (requires Node.js and npm)'
     workingDir file('src/frontend')
-    commandLine 'sh', '-c', 'if [ -f package.json ] && command -v npm >/dev/null; then npm install --silent --no-audit --no-fund && npm run typecheck && npm test; else echo "frontend tests skipped (no npm)"; fi'
-    inputs.dir('src/frontend/src'); inputs.files('src/frontend/package.json', 'src/frontend/tsconfig.json', 'src/frontend/vite.config.ts')
+    commandLine 'npm', 'ci', '--no-audit', '--no-fund'
+    inputs.files('src/frontend/package.json', 'src/frontend/package-lock.json')
+    outputs.dir('src/frontend/node_modules')
+}
+tasks.register('frontendTest', Exec) {
+    group = 'verification'; description = 'Typecheck + Vitest for the React SPA'
+    dependsOn 'frontendInstall'
+    workingDir file('src/frontend')
+    commandLine 'sh', '-c', 'npm run typecheck && npm test'
     outputs.upToDateWhen { false }
 }
 tasks.register('frontendBuild', Exec) {
-    group = 'build'; description = 'Build React SPA if npm available'
+    group = 'build'; description = 'Build the React SPA'
+    dependsOn 'frontendInstall'
     workingDir file('src/frontend')
-    commandLine 'sh', '-c', 'if [ -f package.json ] && command -v npm >/dev/null; then npm install --silent --no-audit --no-fund && npm run build; else echo "frontend build skipped (no npm)"; fi'
-    inputs.dir('src/frontend/src'); outputs.dir('src/frontend/dist')
+    commandLine 'npm', 'run', 'build'
+    inputs.files(fileTree('src/frontend') { exclude 'node_modules/**', 'dist/**' })
+    outputs.dir('src/frontend/dist')
 }
 tasks.named('check') { dependsOn 'frontendTest' }
-tasks.register('copyFrontend', Copy) {
+tasks.register('copyFrontend', Sync) {
     dependsOn 'frontendBuild'
     from('src/frontend/dist'); into('src/main/resources/static')
-    onlyIf { file('src/frontend/dist').exists() }
+    doFirst {
+        if (!file('src/frontend/dist/index.html').isFile()) {
+            throw new GradleException('Frontend output is missing; run frontendBuild before packaging.')
+        }
+    }
 }
-processResources.mustRunAfter 'copyFrontend'
+tasks.named('processResources') { dependsOn 'copyFrontend' }
 tasks.withType(JavaCompile).configureEach { options.compilerArgs += ['-parameters'] }

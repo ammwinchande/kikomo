@@ -14,8 +14,9 @@ COPY gradle gradle
 COPY build.gradle settings.gradle ./
 RUN chmod +x ./gradlew && ./gradlew dependencies --no-daemon > /dev/null
 COPY src ./src
-COPY --from=frontend /frontend/dist/ ./src/main/resources/static/
-RUN ./gradlew bootJar -x test --no-daemon
+COPY --from=frontend /frontend/dist/ ./src/frontend/dist/
+# Gradle still syncs the SPA into the JAR; Node already built it in the first stage.
+RUN ./gradlew bootJar -x test -x frontendBuild --no-daemon
 
 # 3) Runtime
 FROM eclipse-temurin:21-jre-alpine

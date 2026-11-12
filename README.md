@@ -15,8 +15,16 @@ Without Docker (needs Postgres on localhost:5432):
 
 ```bash
 cp .env.example .env   # fill in values
+# Export the values in .env into your shell; bootRun does not load that file automatically.
 ./gradlew bootRun
 ```
+
+Java 21 and Node.js 22.12+ (including npm) are required for Gradle builds. `./gradlew bootJar` installs the locked
+frontend dependencies, builds the SPA, and syncs its HTML, JS, CSS and public files into the JAR. `bootRun` uses
+the same resource pipeline. Docker builds the SPA in its Node stage and reuses that output during Gradle packaging.
+
+Compose mounts Postgres 18 data at `/var/lib/postgresql`. If an existing volume contains a database created by
+an older PostgreSQL major version, migrate that database before reusing the volume with Postgres 18.
 
 ## MCP
 
@@ -55,6 +63,26 @@ npm --prefix src/frontend test   # frontend tests only (Vitest + Testing Library
 
 ## Hosting (Render + Neon)
 
-`render.yaml` (Docker, Starter) + Neon Postgres. Set env from `.env.example`; set `PUBLIC_URL` after first deploy. See SPEC.md §16.
-With `PAYPAL_MODE=live` the app refuses to start unless `ADMIN_PASSWORD` (non-default), `SESSION_SECRET` (32+ chars),
-`DEMO_AGENT_TOKEN` (32+ chars) and the PayPal credentials are set.
+Create a Render Blueprint from `render.yaml` (Docker, Starter) and supply the prompted settings:
+
+| Settings | Value |
+| --- | --- |
+| `SPRING_DATASOURCE_URL` | Neon **direct**, non-pooler JDBC URL: `jdbc:postgresql://<host>/<database>?sslmode=require` |
+| `SPRING_DATASOURCE_USERNAME`, `SPRING_DATASOURCE_PASSWORD` | Credentials for that Neon database |
+| `PUBLIC_URL` | The service's real `https://…onrender.com` URL; verify it after the first deploy |
+| `ADMIN_PASSWORD` | A strong, non-default password for the admin portal |
+| `PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET` | PayPal **sandbox** application credentials |
+| `DEMO_PAYEE_DEVTOOLS`, `DEMO_PAYEE_CONF` | Sandbox personal-account emails receiving the demo payments |
+| `LLM_API_KEY` | Key for the configured Meta provider; change provider/base URL/model together for another provider |
+
+Render generates `SESSION_SECRET` and `DEMO_AGENT_TOKEN`; retrieve the token from the service's Environment page
+when configuring an external MCP client. Keep both values stable across restarts. The blueprint enables the demo,
+live **sandbox** PayPal, and the Meta policy compiler using the defaults in SPEC.md §4. No Render database is created.
+
+For an existing Render service, add new prompted variables manually: Blueprint `sync: false` entries only prompt
+during initial creation ([Render docs](https://render.com/docs/blueprint-spec#prompting-for-secret-values)).
+With `PAYPAL_MODE=live`, missing or default auth secrets and missing PayPal credentials prevent startup.
+For offline verification, use `PAYPAL_MODE=mock` and `LLM_PROVIDER=stub`; the UI shows a persistent MOCK PAYPAL banner.
+
+After deployment, check `/api/health`, sign in, reload `/approvals`, and run the small-payment, approval and injection
+demo scenarios. Verify the nonempty audit chain. R9 in `PROGRESS.md` remains pending until the hosted checks pass.
